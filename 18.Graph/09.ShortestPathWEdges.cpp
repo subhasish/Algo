@@ -1,0 +1,146 @@
+/*
+ * 09.ShortestPathWEdges.cpp
+ *
+ * Problem: Design an algorithm that takes a graph G = (V,E), directed or undirected, a nonnegative
+ * 			cost function on E, and vertices s and t, and outputs the shortest path from s to t
+ * 			that has minimum number of edges among the all shortest paths.
+ *
+ *  Created on: Jul 11, 2018
+ *      Author: subha
+ */
+
+#include <bits/stdc++.h>
+
+using namespace std;
+
+// Solution:
+//			Heuristically, we may think that adding small cost with edge will penalize path with most
+//			edges. But it may penalize path with more edges such that a shortest path with more edges
+//			may result in higher cost than an original path of higher cost and less number of edges.
+//			Example, <1,1,1> and <4> being two path. Now adding penalty 1 to each edge cause wrong
+//			result.
+//
+//			For shortest path with weighted edges, we know Dijkstra's algorithm. But it only
+//			considers distance from source vertex in terms of sum of edge weights.
+//
+//			One important observation that new metric for distance is also monotonic similar to
+//			nonnegative edge weights used in Dijkstra. So these two can be combined to form a new
+//			metric that would also be monotonic.
+//
+//			If we make the scalar metric of distance from <sum of weights> to
+//			<sum of weights, number of edges> and use it in comparison then Dijkstra's algorithm
+//			can find the shortest path as well.
+//
+//			Regarding implementation of Dijkstra, we need to select the vertex with minimum distance
+//			each time. So heap may be used. We also need to keep updating distance of the
+//			vertices in the heap as we keep relaxing more edges. But STL heap unordered_set does
+//			not support efficient updates. So it is more convenient to use BST set instead.
+
+struct Vertex {
+
+	struct Distance {
+		int weights, num_edges;
+	};
+
+	// For unexplored vertices second parameter does not matter as comparison will fail with first one
+	// and second parameter will be set with its predecessor + 1
+	// Still it may be better to initialize it with max instead of 0
+	Distance distance = Distance{numeric_limits<int>::max(), numeric_limits<int>::max()};
+
+	struct VertexWithDistance {   // For weighted edges
+		Vertex& vertex;
+		int weight;
+	};
+	vector<VertexWithDistance> edges;
+
+	int id;
+	Vertex* pred = nullptr;			// predecessor in the shortest path
+};
+
+
+struct CompVertex {
+	bool operator() (const Vertex* lhs, const Vertex* rhs) {
+		if(lhs->distance.weights < rhs->distance.weights) {
+			return true;
+		} else if(lhs->distance.weights == rhs->distance.weights &&
+				lhs->distance.num_edges < rhs->distance.num_edges) {
+			return true;
+		} else if(lhs->id < rhs->id) {	// This is needed so that set adds two different vertices
+										// with same distance
+			return true;
+		}
+
+		return false;
+	}
+};
+
+void OutputShortestPath(const Vertex* v)
+{
+	if(v != nullptr) {
+		OutputShortestPath(v->pred);		// NICE: nice way to get the path in proper order
+		cout << v->id << " -> ";
+	}
+}
+
+void DijkstraShortestPath(Vertex* s, Vertex* t)
+{
+	// Next set of vertices reachable from the explored tree. We will choose vertex of minimum
+	// distance from this collection.
+	set<Vertex*, CompVertex> reachable_node_set;	//BST instead of heap
+
+	// Initialize the source
+	s->distance = {0,0};
+	reachable_node_set.emplace(s);
+
+	while(!reachable_node_set.empty()) {
+		// Extract vertex of minimum distance from the set
+		Vertex* nearest = *reachable_node_set.cbegin();
+		if(nearest->id == t->id) {
+			break;
+		}
+
+		// Remove the nearest from the set
+		reachable_node_set.erase(reachable_node_set.cbegin());
+
+		// Add all the neighbors of the newly explored nodes to the set
+		for(const Vertex::VertexWithDistance& v: nearest->edges) {
+			int path_weight = nearest->distance.weights + v.weight;
+			int path_edges = nearest->distance.num_edges + 1;
+
+			if(path_weight < v.vertex.distance.weights ||
+					(path_weight == v.vertex.distance.weights && path_edges < v.vertex.distance.num_edges))
+			{
+				reachable_node_set.erase(&v.vertex);
+				v.vertex.pred = nearest;
+				v.vertex.distance = {path_weight, path_edges};
+				reachable_node_set.emplace(&v.vertex);
+			}
+		}
+	}
+
+	cout << "Shortest path: ";
+	OutputShortestPath(t);
+	cout << endl;
+}
+
+int main() {
+
+	Vertex a,b,c,d;
+
+	a.id=1; b.id=2; c.id=3; d.id=4;
+
+	a.edges.emplace_back(Vertex::VertexWithDistance{b,1});
+	a.edges.emplace_back(Vertex::VertexWithDistance{c,1});
+	c.edges.emplace_back(Vertex::VertexWithDistance{d,2});
+
+
+
+//	a.id=1; b.id=2; c.id=3; d.id=4;
+//
+//	a.edges.emplace_back(Vertex::VertexWithDistance{b,1});
+//	b.edges.emplace_back(Vertex::VertexWithDistance{c,1});
+//	c.edges.emplace_back(Vertex::VertexWithDistance{d,1});
+//	a.edges.emplace_back(Vertex::VertexWithDistance{c,2});
+
+	DijkstraShortestPath(&a, &d);
+}
